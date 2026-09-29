@@ -1,0 +1,38 @@
+Picked up JAVA_TOOL_OPTIONS: -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8
+> Task :gradle:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle:compileKotlin UP-TO-DATE
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy NO-SOURCE
+> Task :gradle:pluginDescriptors UP-TO-DATE
+> Task :gradle:processResources UP-TO-DATE
+> Task :gradle:classes UP-TO-DATE
+> Task :gradle:jar UP-TO-DATE
+
+> Configure project :app
+e: file:///D:/tugas%20semester%203/tugas%20mobile%203/proyek_akhir_kelompok_campuslost/campuslost/android/app/build.gradle.kts:22:5: Unresolved reference: compilerOptions
+e: file:///D:/tugas%20semester%203/tugas%20mobile%203/proyek_akhir_kelompok_campuslost/campuslost/android/app/build.gradle.kts:23:9: Unresolved reference: jvmTarget
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file 'D:\tugas semester 3\tugas mobile 3\proyek_akhir_kelompok_campuslost\campuslost\android\app\build.gradle.kts' line: 22
+
+* What went wrong:
+Script compilation errors:
+
+  Line 22:     compilerOptions {
+               ^ Unresolved reference: compilerOptions
+
+  Line 23:         jvmTarget.set(JvmTarget.JVM_21)
+                   ^ Unresolved reference: jvmTarget
+
+2 errors
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 2s
+4 actionable tasks: 4 up-to-date

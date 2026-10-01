@@ -1,7 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/item_model.dart';
-import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 
 class ClaimScreen extends StatefulWidget {
@@ -16,24 +16,22 @@ class ClaimScreen extends StatefulWidget {
 class _ClaimScreenState extends State<ClaimScreen> {
   final answerController = TextEditingController();
 
-  final AuthService authService = AuthService();
-
   final FirestoreService firestoreService = FirestoreService();
 
   bool isLoading = false;
 
   Future<void> submitClaim() async {
-    if (answerController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jawaban verifikasi wajib diisi.')),
-      );
+    final User? user = FirebaseAuth.instance.currentUser;
 
+    if (user == null) {
+      _showMessage('Silakan login terlebih dahulu.');
       return;
     }
 
-    final user = authService.currentUser;
+    final answer = answerController.text.trim();
 
-    if (user == null) {
+    if (answer.isEmpty) {
+      _showMessage('Jawaban verifikasi wajib diisi.');
       return;
     }
 
@@ -42,23 +40,29 @@ class _ClaimScreenState extends State<ClaimScreen> {
     });
 
     try {
+      final alreadyClaimed = await firestoreService.hasExistingClaim(
+        itemId: widget.item.id,
+        userId: user.uid,
+      );
+
+      if (alreadyClaimed) {
+        _showMessage('Kamu sudah mengajukan klaim untuk barang ini.');
+        return;
+      }
+
       await firestoreService.createClaim(
         itemId: widget.item.id,
         userId: user.uid,
-        answer: answerController.text.trim(),
+        answer: answer,
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Klaim berhasil dikirim.')));
+      _showMessage('Klaim berhasil dikirim.');
 
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal mengirim klaim: $e')));
+      _showMessage('Gagal mengirim klaim: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -66,6 +70,14 @@ class _ClaimScreenState extends State<ClaimScreen> {
         });
       }
     }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -83,46 +95,64 @@ class _ClaimScreenState extends State<ClaimScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.item.title,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 20),
-
             const Text(
-              'Pertanyaan Verifikasi',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Klaim Barang',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 8),
 
-            const Text(
-              'Jelaskan ciri-ciri atau informasi khusus yang dapat membuktikan bahwa barang tersebut milik Anda.',
+            Text(
+              widget.item.title,
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.indigo.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Jelaskan ciri-ciri khusus yang dapat '
+                'membuktikan bahwa barang tersebut adalah '
+                'milik Anda.',
+              ),
+            ),
+
+            const SizedBox(height: 20),
 
             TextField(
               controller: answerController,
               maxLines: 7,
               decoration: const InputDecoration(
+                labelText: 'Jawaban Verifikasi',
                 hintText:
-                    'Contoh: terdapat stiker tertentu, isi tas, ciri khusus, dan sebagainya.',
+                    'Contoh: ciri khusus barang, isi tas, '
+                    'nomor seri, atau informasi lainnya.',
                 alignLabelWithHint: true,
+                prefixIcon: Icon(Icons.verified_user_outlined),
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 25),
 
             SizedBox(
               width: double.infinity,
               height: 52,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: isLoading ? null : submitClaim,
-                child: isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('KIRIM KLAIM'),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+                label: Text(isLoading ? 'MENGIRIM...' : 'KIRIM KLAIM'),
               ),
             ),
           ],

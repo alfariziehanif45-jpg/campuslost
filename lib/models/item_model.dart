@@ -8,13 +8,13 @@ class ItemModel {
   final String color;
   final String description;
   final String location;
-  final String imageUrl;
   final String userId;
-  final DateTime? date;
+  final String imageUrl;
   final String status;
+  final DateTime? date;
   final DateTime? createdAt;
 
-  ItemModel({
+  const ItemModel({
     required this.id,
     required this.title,
     required this.type,
@@ -22,52 +22,41 @@ class ItemModel {
     required this.color,
     required this.description,
     required this.location,
-    required this.imageUrl,
     required this.userId,
-    required this.date,
+    required this.imageUrl,
     required this.status,
-    required this.createdAt,
+    this.date,
+    this.createdAt,
   });
 
-  factory ItemModel.fromDocument(
-    DocumentSnapshot<Map<String, dynamic>> document,
-  ) {
-    final data = document.data() ?? {};
+  factory ItemModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
 
-    final dateTimestamp = data['date'];
-    final createdTimestamp = data['createdAt'];
+    DateTime? parseDate(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+
+      if (value is DateTime) {
+        return value;
+      }
+
+      return null;
+    }
 
     return ItemModel(
-      id: document.id,
-      title: data['title'] ?? '',
-      type: data['type'] ?? 'LOST',
-      category: data['category'] ?? '',
-      color: data['color'] ?? '',
-      description: data['description'] ?? '',
-      location: data['location'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
-      userId: data['userId'] ?? '',
-      date: dateTimestamp is Timestamp ? dateTimestamp.toDate() : null,
-      status: data['status'] ?? 'ACTIVE',
-      createdAt: createdTimestamp is Timestamp
-          ? createdTimestamp.toDate()
-          : null,
+      id: doc.id,
+      title: data['title']?.toString() ?? '',
+      type: data['type']?.toString() ?? '',
+      category: data['category']?.toString() ?? '',
+      color: data['color']?.toString() ?? '',
+      description: data['description']?.toString() ?? '',
+      location: data['location']?.toString() ?? '',
+      userId: data['userId']?.toString() ?? '',
+      imageUrl: data['imageUrl']?.toString() ?? '',
+      status: data['status']?.toString() ?? 'OPEN',
+      date: parseDate(data['date']),
+      createdAt: parseDate(data['createdAt']),
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'title': title,
-      'type': type,
-      'category': category,
-      'color': color,
-      'description': description,
-      'location': location,
-      'imageUrl': imageUrl,
-      'userId': userId,
-      'date': date,
-      'status': status,
-      'createdAt': createdAt,
-    };
   }
 }

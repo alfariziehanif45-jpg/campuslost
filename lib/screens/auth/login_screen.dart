@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../home/home_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -10,126 +11,152 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final TextEditingController emailController =
+      TextEditingController();
 
-  bool _obscurePassword = true;
+  final TextEditingController passwordController =
+      TextEditingController();
+
+  bool obscurePassword = true;
+
+  void login() {
+    // Jangan tampilkan snackbar.
+    // Langsung pindah ke HomeScreen.
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => const HomeScreen(),
+      ),
+      (route) => false,
+    );
+  }
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
     super.dispose();
-  }
-
-  void _login() {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email dan password wajib diisi')),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tombol login berhasil ditekan')),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(30),
+
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.find_in_page, size: 90, color: Colors.indigo),
+
+                const Icon(
+                  Icons.find_in_page,
+                  size: 110,
+                  color: Color(0xFF4358B8),
+                ),
 
                 const SizedBox(height: 20),
 
                 const Text(
                   'CampusLost',
-                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 40,
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: Color(0xFF4358B8),
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
 
                 const Text(
                   'Temukan kembali barangmu di lingkungan kampus',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey,
+                  ),
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 50),
 
                 TextField(
-                  controller: _emailController,
+                  controller: emailController,
                   keyboardType: TextInputType.emailAddress,
+
                   decoration: InputDecoration(
                     labelText: 'Email',
-                    hintText: 'Masukkan email',
-                    prefixIcon: const Icon(Icons.email_outlined),
+                    prefixIcon: const Icon(
+                      Icons.email_outlined,
+                    ),
+
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
+                  controller: passwordController,
+                  obscureText: obscurePassword,
+
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    hintText: 'Masukkan password',
-                    prefixIcon: const Icon(Icons.lock_outline),
+
+                    prefixIcon: const Icon(
+                      Icons.lock_outline,
+                    ),
+
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                        obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
                       ),
+
                       onPressed: () {
                         setState(() {
-                          _obscurePassword = !_obscurePassword;
+                          obscurePassword =
+                              !obscurePassword;
                         });
                       },
                     ),
+
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 30),
 
                 SizedBox(
-                  height: 52,
+                  width: double.infinity,
+                  height: 56,
+
                   child: ElevatedButton(
-                    onPressed: _login,
+                    onPressed: login,
+
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo,
+                      backgroundColor:
+                          const Color(0xFF4358B8),
+
                       foregroundColor: Colors.white,
+
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(16),
                       ),
                     ),
+
                     child: const Text(
                       'LOGIN',
+
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -139,22 +166,33 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 20),
 
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
+
                   children: [
-                    const Text('Belum punya akun? '),
+
+                    const Text(
+                      'Belum punya akun?',
+                    ),
 
                     TextButton(
                       onPressed: () {
                         Navigator.push(
                           context,
+
                           MaterialPageRoute(
-                            builder: (_) => const RegisterScreen(),
+                            builder: (context) =>
+                                const RegisterScreen(),
                           ),
                         );
                       },
+
                       child: const Text(
                         'Daftar',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Color(0xFF4358B8),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],

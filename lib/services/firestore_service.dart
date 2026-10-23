@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/claim_model.dart';
 import '../models/item_model.dart';
+import '../models/user_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -19,17 +20,33 @@ class FirestoreService {
     required String location,
     required String userId,
     String imageUrl = '',
+    String imageData = '',
+    bool isSensitive = false,
+    String? secretVerificationQuestion,
+    int? floorLevel,
+    double? latitude,
+    double? longitude,
   }) async {
     final document = await _db.collection('items').add({
       'title': title.trim(),
       'type': type,
+      'status_type': type,
       'category': category.trim(),
       'color': color.trim(),
       'description': description.trim(),
       'location': location.trim(),
+      'location_name': location.trim(),
       'userId': userId,
+      'user_id': userId,
       'imageUrl': imageUrl,
+      'imageData': imageData,
+      'is_sensitive': isSensitive,
+      'secret_verification_question': secretVerificationQuestion,
+      'floor_level': floorLevel,
+      'latitude': latitude,
+      'longitude': longitude,
       'status': 'OPEN',
+      'is_received_by_owner': false,
       'date': Timestamp.now(),
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -63,19 +80,16 @@ class FirestoreService {
   // ============================================================
 
   Stream<List<ItemModel>> getLostItems() {
-    return _db
-        .collection('items')
-        .where('type', isEqualTo: 'LOST')
-        .snapshots()
-        .map((snapshot) {
-          final items = snapshot.docs
-              .map((doc) => ItemModel.fromFirestore(doc))
-              .toList();
+    return _db.collection('items').snapshots().map((snapshot) {
+      final items = snapshot.docs
+          .map((doc) => ItemModel.fromFirestore(doc))
+          .where((item) => item.isLost)
+          .toList();
 
-          _sortItems(items);
+      _sortItems(items);
 
-          return items;
-        });
+      return items;
+    });
   }
 
   // ============================================================
@@ -83,19 +97,16 @@ class FirestoreService {
   // ============================================================
 
   Stream<List<ItemModel>> getFoundItems() {
-    return _db
-        .collection('items')
-        .where('type', isEqualTo: 'FOUND')
-        .snapshots()
-        .map((snapshot) {
-          final items = snapshot.docs
-              .map((doc) => ItemModel.fromFirestore(doc))
-              .toList();
+    return _db.collection('items').snapshots().map((snapshot) {
+      final items = snapshot.docs
+          .map((doc) => ItemModel.fromFirestore(doc))
+          .where((item) => item.isFound)
+          .toList();
 
-          _sortItems(items);
+      _sortItems(items);
 
-          return items;
-        });
+      return items;
+    });
   }
 
   void _sortItems(List<ItemModel> items) {
@@ -122,11 +133,21 @@ class FirestoreService {
   }
 
   // ============================================================
-  // UPDATE STATUS ITEM
+  // UPDATE STATUS ITEM & KONFIRMASI DITERIMA PEMILIK
   // ============================================================
 
   Future<void> updateItemStatus(String itemId, String status) async {
     await _db.collection('items').doc(itemId).update({'status': status});
+  }
+
+  /// Konfirmasi bahwa barang temuan sudah berhasil diterima kembali oleh pemilik sahnya
+  Future<void> confirmItemReceived(String itemId) async {
+    await _db.collection('items').doc(itemId).update({
+      'status': 'RECEIVED',
+      'is_received_by_owner': true,
+      'isReceivedByOwner': true,
+      'receivedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   // ============================================================
@@ -135,6 +156,23 @@ class FirestoreService {
 
   Future<void> deleteItem(String itemId) async {
     await _db.collection('items').doc(itemId).delete();
+  }
+
+  // ============================================================
+  // USER PROFILE
+  // ============================================================
+
+  Stream<UserModel?> streamUserProfile(String uid) {
+    return _db.collection('users').doc(uid).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return UserModel.fromFirestore(doc);
+    });
+  }
+
+  Future<UserModel?> getUserProfile(String uid) async {
+    final doc = await _db.collection('users').doc(uid).get();
+    if (!doc.exists) return null;
+    return UserModel.fromFirestore(doc);
   }
 
   // ============================================================
@@ -148,10 +186,15 @@ class FirestoreService {
   }) async {
     final document = await _db.collection('claims').add({
       'itemId': itemId,
+      'item_id': itemId,
       'userId': userId,
+      'claimant_user_id': userId,
       'answer': answer.trim(),
+      'proof_answer': answer.trim(),
       'status': 'PENDING',
+      'claim_status': 'PENDING',
       'createdAt': FieldValue.serverTimestamp(),
+      'created_at': FieldValue.serverTimestamp(),
     });
 
     return document.id;

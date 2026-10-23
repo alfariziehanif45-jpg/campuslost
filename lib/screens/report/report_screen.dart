@@ -1,14 +1,17 @@
-import 'dart:io';
-
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../services/firestore_service.dart';
+import '../../core/constants/app_colors.dart';
 import '../../services/storage_service.dart';
 
+import '../auth/login_screen.dart';
+
 class ReportScreen extends StatefulWidget {
-  final String type;
+  final String type; // 'LOST' atau 'FOUND'
 
   const ReportScreen({super.key, required this.type});
 
@@ -17,379 +20,397 @@ class ReportScreen extends StatefulWidget {
 }
 
 class _ReportScreenState extends State<ReportScreen> {
-  final FirestoreService firestoreService = FirestoreService();
+  final TextEditingController namaController = TextEditingController();
+  final TextEditingController kategoriController = TextEditingController();
+  final TextEditingController warnaController = TextEditingController();
+  final TextEditingController lokasiController = TextEditingController();
+  final TextEditingController deskripsiController = TextEditingController();
 
-  final StorageService storageService = StorageService();
-
-  final ImagePicker imagePicker = ImagePicker();
-
-  final TextEditingController titleController = TextEditingController();
-
-  final TextEditingController colorController = TextEditingController();
-
-  final TextEditingController locationController = TextEditingController();
-
-  final TextEditingController descriptionController = TextEditingController();
-
-  final List<String> categories = [
-    'Elektronik',
-    'Dompet',
-    'Kunci',
-    'Dokumen',
-    'Tas',
-    'Pakaian',
-    'Aksesoris',
-    'Lainnya',
-  ];
-
-  String? selectedCategory;
-
-  File? selectedImage;
-
+  Uint8List? imageBytes;
+  final ImagePicker _picker = ImagePicker();
   bool isLoading = false;
-
-  // ============================================================
-  // PILIH GAMBAR
-  // ============================================================
-
-  Future<void> pickImage() async {
-    try {
-      final XFile? image = await imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-
-      if (image == null) {
-        return;
-      }
-
-      setState(() {
-        selectedImage = File(image.path);
-      });
-    } catch (e) {
-      showMessage('Gagal memilih gambar: $e');
-    }
-  }
-
-  // ============================================================
-  // SUBMIT
-  // ============================================================
-
-  Future<void> submit() async {
-    final User? user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      showMessage('Silakan login terlebih dahulu.');
-      return;
-    }
-
-    if (titleController.text.trim().isEmpty) {
-      showMessage('Nama barang wajib diisi.');
-      return;
-    }
-
-    if (selectedCategory == null) {
-      showMessage('Kategori barang wajib dipilih.');
-      return;
-    }
-
-    if (colorController.text.trim().isEmpty) {
-      showMessage('Warna barang wajib diisi.');
-      return;
-    }
-
-    if (locationController.text.trim().isEmpty) {
-      showMessage('Lokasi wajib diisi.');
-      return;
-    }
-
-    if (descriptionController.text.trim().isEmpty) {
-      showMessage('Deskripsi wajib diisi.');
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
-    });
-
-    try {
-      String imageUrl = '';
-
-      // Upload gambar jika user memilih gambar
-      if (selectedImage != null) {
-        imageUrl = await storageService.uploadItemImage(
-          selectedImage!,
-          user.uid,
-        );
-      }
-
-      // Simpan data barang ke Firestore
-      await firestoreService.createItem(
-        title: titleController.text.trim(),
-        type: widget.type,
-        category: selectedCategory!,
-        color: colorController.text.trim(),
-        description: descriptionController.text.trim(),
-        location: locationController.text.trim(),
-        userId: user.uid,
-        imageUrl: imageUrl,
-      );
-
-      if (!mounted) return;
-
-      showMessage(
-        widget.type == 'LOST'
-            ? 'Laporan barang hilang berhasil dibuat.'
-            : 'Laporan barang ditemukan berhasil dibuat.',
-        success: true,
-      );
-
-      Navigator.pop(context);
-    } catch (e) {
-      if (!mounted) return;
-
-      showMessage('Gagal menyimpan laporan: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
-    }
-  }
-
-  // ============================================================
-  // MESSAGE
-  // ============================================================
-
-  void showMessage(String message, {bool success = false}) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
-    );
-  }
-
-  // ============================================================
-  // DISPOSE
-  // ============================================================
 
   @override
   void dispose() {
-    titleController.dispose();
-    colorController.dispose();
-    locationController.dispose();
-    descriptionController.dispose();
-
+    namaController.dispose();
+    kategoriController.dispose();
+    warnaController.dispose();
+    lokasiController.dispose();
+    deskripsiController.dispose();
     super.dispose();
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Pilih Sumber Foto',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt, color: AppColors.primaryContainer),
+                  title: const Text('Ambil dari Kamera'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library, color: AppColors.primaryContainer),
+                  title: const Text('Pilih dari Galeri'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        setState(() {
+          imageBytes = bytes;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memilih gambar: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> simpanLaporan() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Silakan Login Terlebih Dahulu'),
+          content: const Text(
+            'Anda perlu masuk ke akun terlebih dahulu sebelum dapat mempublikasikan laporan barang.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryContainer,
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+              child: const Text('Login Sekarang', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (namaController.text.trim().isEmpty || lokasiController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harap isi Nama Barang dan Lokasi!')),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    String imageUrl = '';
+    String imageBase64 = '';
+
+    try {
+      if (imageBytes != null) {
+        // 1. Coba upload ke Firebase Storage (mendukung foto resolusi penuh tanpa batas)
+        try {
+          imageUrl = await StorageService().uploadItemImageBytes(imageBytes!, user.uid);
+        } catch (_) {
+          // Jika Firebase Storage tidak tersedia, fallback ke penyimpanan Base64
+        }
+
+        // 2. Simpan sebagai Base64
+        final encoded = base64Encode(imageBytes!);
+        // Batas dokumen Firestore adalah 1.048.576 byte (~1MB)
+        if (encoded.length < 980000) {
+          imageBase64 = encoded;
+        } else if (imageUrl.isEmpty) {
+          imageBase64 = encoded;
+        }
+      }
+
+      // Simpan data lengkap ke Firestore
+      await FirebaseFirestore.instance.collection('items').add({
+        'title': namaController.text.trim(),
+        'category': kategoriController.text.trim().isNotEmpty
+            ? kategoriController.text.trim()
+            : 'Lainnya',
+        'color': warnaController.text.trim(),
+        'location': lokasiController.text.trim(),
+        'location_name': lokasiController.text.trim(),
+        'description': deskripsiController.text.trim(),
+        'imageUrl': imageUrl,
+        'imageData': imageBase64,
+        'type': widget.type,
+        'status_type': widget.type,
+        'status': 'OPEN',
+        'is_received_by_owner': false,
+        'userId': user.uid,
+        'user_id': user.uid,
+        'date': Timestamp.now(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Laporan berhasil disimpan!'),
+            backgroundColor: AppColors.secondary,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan laporan: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool isLost = widget.type == 'LOST';
+    final isLost = widget.type == 'LOST';
+    final titleText = isLost ? 'Laporkan Barang Hilang' : 'Laporkan Barang Temuan';
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          isLost ? 'Laporkan Barang Hilang' : 'Laporkan Barang Ditemukan',
-        ),
-        centerTitle: true,
+        title: Text(titleText),
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --------------------------------------------------
-            // JUDUL
-            // --------------------------------------------------
-            Text(
-              isLost ? 'Laporan Barang Hilang' : 'Laporan Barang Ditemukan',
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            // Preview & Upload Foto
+            const Text(
+              'Foto Barang Bukti',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: AppColors.onSurface,
+              ),
             ),
-
             const SizedBox(height: 8),
-
-            Text(
-              isLost
-                  ? 'Masukkan informasi barang yang hilang.'
-                  : 'Masukkan informasi barang yang kamu temukan.',
-              style: const TextStyle(color: Colors.grey),
-            ),
-
-            const SizedBox(height: 25),
-
-            // --------------------------------------------------
-            // GAMBAR
-            // --------------------------------------------------
             GestureDetector(
-              onTap: pickImage,
+              onTap: _showImageSourceDialog,
               child: Container(
-                width: double.infinity,
                 height: 200,
+                width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: imageBytes != null ? AppColors.primaryContainer : AppColors.borderCard,
+                    width: imageBytes != null ? 2 : 1,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color.fromRGBO(15, 23, 42, 0.04),
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
-                child: selectedImage == null
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.add_a_photo_outlined, size: 50),
-                          SizedBox(height: 10),
-                          Text('Tambahkan Foto Barang'),
-                          SizedBox(height: 5),
-                          Text(
-                            'Ketuk untuk memilih foto',
-                            style: TextStyle(color: Colors.grey),
+                child: imageBytes != null
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Image.memory(
+                              imageBytes!,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 10,
+                            right: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.edit, color: Colors.white, size: 14),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Ganti Foto',
+                                    style: TextStyle(color: Colors.white, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.file(
-                          selectedImage!,
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            child: const Icon(
+                              Icons.add_a_photo,
+                              size: 32,
+                              color: AppColors.primaryContainer,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Ketuk untuk memilih foto (Resolusi Jernih & HD)',
+                            style: TextStyle(
+                              color: AppColors.primaryContainer,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Mendukung foto kamera & galeri ukuran berapa saja',
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Form Fields
+            _buildField(namaController, 'Nama Barang *', 'Contoh: Dompet Kulit Bifold Hitam, KTM'),
+            const SizedBox(height: 14),
+            _buildField(kategoriController, 'Kategori Barang', 'Contoh: Aksesoris, Elektronik, Dokumen'),
+            const SizedBox(height: 14),
+            _buildField(warnaController, 'Warna Barang', 'Contoh: Hitam, Biru Dongker'),
+            const SizedBox(height: 14),
+            _buildField(lokasiController, 'Lokasi Terakhir / Ditemukan *', 'Contoh: Gd. Fasilkom Lt. 2 (Lab Jaringan)'),
+            const SizedBox(height: 14),
+            _buildField(
+              deskripsiController,
+              'Deskripsi Detail',
+              'Sebutkan ciri-ciri khusus, kondisi, atau detail lainnya...',
+              maxLines: 3,
+            ),
+            const SizedBox(height: 28),
+
+            // Tombol Simpan
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : simpanLaporan,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isLost ? AppColors.alertRed : AppColors.secondary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : Text(
+                        'SIMPAN LAPORAN ${isLost ? "HILANG" : "TEMUAN"}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
               ),
             ),
-
-            const SizedBox(height: 25),
-
-            // --------------------------------------------------
-            // NAMA BARANG
-            // --------------------------------------------------
-            TextField(
-              controller: titleController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Nama Barang',
-                hintText: 'Contoh: Dompet kulit hitam',
-                prefixIcon: Icon(Icons.inventory_2_outlined),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // --------------------------------------------------
-            // KATEGORI
-            // --------------------------------------------------
-            DropdownButtonFormField<String>(
-              value: selectedCategory,
-              decoration: const InputDecoration(
-                labelText: 'Kategori',
-                prefixIcon: Icon(Icons.category_outlined),
-              ),
-              items: categories.map((category) {
-                return DropdownMenuItem<String>(
-                  value: category,
-                  child: Text(category),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedCategory = value;
-                });
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            // --------------------------------------------------
-            // WARNA
-            // --------------------------------------------------
-            TextField(
-              controller: colorController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Warna',
-                hintText: 'Contoh: Hitam',
-                prefixIcon: Icon(Icons.palette_outlined),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // --------------------------------------------------
-            // LOKASI
-            // --------------------------------------------------
-            TextField(
-              controller: locationController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Lokasi',
-                hintText: 'Contoh: Gedung A lantai 2',
-                prefixIcon: Icon(Icons.location_on_outlined),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // --------------------------------------------------
-            // DESKRIPSI
-            // --------------------------------------------------
-            TextField(
-              controller: descriptionController,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                labelText: 'Deskripsi',
-                hintText: 'Jelaskan ciri-ciri barang secara lengkap...',
-                alignLabelWithHint: true,
-                prefixIcon: Icon(Icons.description_outlined),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            // --------------------------------------------------
-            // BUTTON SUBMIT
-            // --------------------------------------------------
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: isLoading ? null : submit,
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.send),
-                label: Text(
-                  isLoading ? 'MENYIMPAN...' : 'KIRIM LAPORAN',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            const Text(
-              'Pastikan informasi barang yang kamu masukkan sudah benar.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildField(
+    TextEditingController controller,
+    String label,
+    String hint, {
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.onSurface,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(fontSize: 13, color: AppColors.outline),
+          ),
+        ),
+      ],
     );
   }
 }

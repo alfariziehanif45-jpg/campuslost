@@ -15,9 +15,7 @@ class ClaimScreen extends StatefulWidget {
 
 class _ClaimScreenState extends State<ClaimScreen> {
   final answerController = TextEditingController();
-
   final FirestoreService firestoreService = FirestoreService();
-
   bool isLoading = false;
 
   Future<void> submitClaim() async {
@@ -58,9 +56,34 @@ class _ClaimScreenState extends State<ClaimScreen> {
 
       if (!mounted) return;
 
-      _showMessage('Klaim berhasil dikirim.');
-
-      Navigator.pop(context);
+      // ✅ Tampilkan Dialog Sukses
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            icon: const Icon(Icons.check_circle, color: Colors.green, size: 60),
+            title: const Text('Klaim Terkirim!', textAlign: TextAlign.center),
+            content: const Text(
+              'Klaim kamu sedang ditinjau oleh penemu barang. '
+              'Jika disetujui, barang akan ditandai sebagai "Berhasil Diklaim oleh Pemilik".',
+              textAlign: TextAlign.center,
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Tutup Dialog
+                    Navigator.pop(context); // Kembali ke halaman sebelumnya
+                  },
+                  child: const Text('OKE, MENGERTI'),
+                ),
+              ),
+            ],
+          );
+        },
+      );
     } catch (e) {
       _showMessage('Gagal mengirim klaim: $e');
     } finally {
@@ -74,7 +97,6 @@ class _ClaimScreenState extends State<ClaimScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
@@ -99,12 +121,47 @@ class _ClaimScreenState extends State<ClaimScreen> {
               'Klaim Barang',
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 16),
 
-            const SizedBox(height: 8),
-
-            Text(
-              widget.item.title,
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+            // ✅ Card Info Barang yang akan diklaim
+            Card(
+              elevation: 0,
+              color: Colors.grey.shade100,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade300),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.inventory_2_outlined,
+                      color: Colors.indigo,
+                      size: 30,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Barang yang diklaim:',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          Text(
+                            widget.item.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 20),
@@ -113,13 +170,14 @@ class _ClaimScreenState extends State<ClaimScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.indigo.withOpacity(0.08),
+                color: Colors.indigo.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
                 'Jelaskan ciri-ciri khusus yang dapat '
                 'membuktikan bahwa barang tersebut adalah '
                 'milik Anda.',
+                style: TextStyle(fontSize: 14),
               ),
             ),
 
@@ -135,6 +193,7 @@ class _ClaimScreenState extends State<ClaimScreen> {
                     'nomor seri, atau informasi lainnya.',
                 alignLabelWithHint: true,
                 prefixIcon: Icon(Icons.verified_user_outlined),
+                border: OutlineInputBorder(),
               ),
             ),
 
@@ -145,14 +204,30 @@ class _ClaimScreenState extends State<ClaimScreen> {
               height: 52,
               child: ElevatedButton.icon(
                 onPressed: isLoading ? null : submitClaim,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
                 icon: isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Icon(Icons.send),
-                label: Text(isLoading ? 'MENGIRIM...' : 'KIRIM KLAIM'),
+                label: Text(
+                  isLoading ? 'MENGIRIM...' : 'KIRIM KLAIM',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           ],

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/item_model.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/item_card.dart';
-import '../detail/item_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -111,15 +110,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   }
 
                   final String title = item.title.toLowerCase();
-
                   final String category = item.category.toLowerCase();
-
                   final String color = item.color.toLowerCase();
-
                   final String location = item.location.toLowerCase();
-
                   final String description = item.description.toLowerCase();
-
                   final String type = item.type.toLowerCase();
 
                   return title.contains(searchQuery) ||
@@ -144,32 +138,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   itemBuilder: (BuildContext context, int index) {
                     final ItemModel item = items[index];
 
-                    return ItemCard(
-                      title: item.title,
-                      category: item.category,
-                      location: item.location,
-                      type: item.type,
-                      imageUrl: item.imageUrl,
-
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) {
-                              return ItemDetailScreen(
-                                title: item.title,
-                                category: item.category,
-                                color: item.color,
-                                location: item.location,
-                                description: item.description,
-                                type: item.type,
-                                imageUrl: item.imageUrl,
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    );
+                    return ItemCard(item: item);
                   },
                 );
               },

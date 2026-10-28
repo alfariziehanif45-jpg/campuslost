@@ -1,16 +1,24 @@
-# campuslost
+# CampusLost
 
-A new Flutter project.
+Aplikasi lost-and-found untuk lingkungan kampus, dibangun dengan Flutter dan Firebase. Dashboard admin tersedia di dalam APK yang sama sebagai layar terpisah dengan login admin.
 
-## Getting Started
+## Build APK gabungan
 
-This project is a starting point for a Flutter application.
+Dashboard React harus dibangun lebih dulu agar asetnya tersedia saat Flutter mengemas APK:
 
-A few resources to get you started if this is your first Flutter project:
+```powershell
+cd admin_web
+npm install
+npm run build
+cd ..
+flutter pub get
+flutter build apk --release
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Hasil APK: `build/app/outputs/flutter-apk/app-release.apk`.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Membuka dashboard admin
+
+- Dari layar login, pilih **Masuk sebagai Admin**.
+- Jika sudah masuk ke akun mahasiswa, buka tab **Profil** lalu pilih **Masuk sebagai Admin**.
+- Gunakan akun Firebase yang dokumen `users/{uid}`-nya memiliki field `role: "admin"`.

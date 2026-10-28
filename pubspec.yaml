@@ -42,6 +42,7 @@ dependencies:
   firebase_messaging: ^16.7.0
   google_maps_flutter: ^2.14.2
   flutter_riverpod: ^3.3.2
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +65,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - admin_web/dist/
+    - admin_web/dist/assets/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

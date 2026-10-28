@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../home/home_screen.dart';
 // ✅ PERBAIKAN: Gunakan package import agar tidak pernah salah path
 import 'package:campuslost/services/user_service.dart';
+import '../admin/admin_dashboard_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -192,6 +193,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminDashboardScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    label: const Text('Masuk sebagai Admin'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF4358B8),
+                      side: const BorderSide(color: Color(0xFF4358B8)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

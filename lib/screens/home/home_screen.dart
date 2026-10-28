@@ -7,7 +7,6 @@ import '../../services/firestore_service.dart';
 import '../../widgets/item_card.dart';
 import '../claim/my_claim_screen.dart';
 import '../found/found_item_screen.dart';
-import '../lost/lost_item_screen.dart';
 import '../profile/profile_screen.dart';
 import '../report/report_found_screen.dart';
 import '../report/report_lost_screen.dart';

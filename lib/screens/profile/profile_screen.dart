@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../auth/login_screen.dart';
+import '../admin/admin_dashboard_screen.dart';
 import 'package:campuslost/services/user_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -163,6 +164,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       data['reputation_score'],
                     ),
                     const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AdminDashboardScreen(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.admin_panel_settings_outlined),
+                        label: const Text('Masuk sebagai Admin'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       height: 50,

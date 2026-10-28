@@ -19,14 +19,14 @@ class ItemDetailScreen extends StatelessWidget {
             // Gambar Barang (Jika ada)
             // Catatan: Pastikan item.imageUrl ada di ItemModel.
             // Jika namanya item.image, ganti di bawah ini.
-            if (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+            if (item.imageUrl.isNotEmpty)
               Container(
                 width: double.infinity,
                 height: 250,
                 decoration: BoxDecoration(
                   color: AppColors.surfaceContainerLow,
                   image: DecorationImage(
-                    image: NetworkImage(item.imageUrl!),
+                    image: NetworkImage(item.imageUrl),
                     fit: BoxFit.cover,
                   ),
                 ),

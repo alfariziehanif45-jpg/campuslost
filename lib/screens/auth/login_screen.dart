@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ TAMBAHAN: Import untuk cek database
 
 import '../home/home_screen.dart';
 // ✅ PERBAIKAN: Gunakan package import agar tidak pernah salah path
@@ -27,29 +28,60 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+
     setState(() => isLoading = true);
+
     try {
+      // 1. Proses Autentikasi Firebase
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text,
       );
 
-      // ✅ Pastikan dokumen user di Firestore tersimpan / sinkron
       final user = cred.user;
+
       if (user != null) {
+        // 2. Pastikan dokumen user di Firestore tersimpan / sinkron
         try {
           await UserService.ensureUserDocument(user);
         } catch (e) {
-          // Kalau gagal (offline), ProfileScreen akan auto-repair nanti
           debugPrint('Gagal sinkronisasi profil: $e');
         }
-      }
 
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (route) => false,
-        );
+        // 3. ✅ LOGIKA BARU: Cek Role Admin dari Firestore
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (mounted) {
+          if (userDoc.exists) {
+            Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+            String role =
+                data['role'] ??
+                'user'; // Default ke 'user' jika field role tidak ada
+
+            if (role == 'admin') {
+              // Jika Admin, lempar ke Dashboard Admin
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+                (route) => false,
+              );
+            } else {
+              // Jika User Biasa, lempar ke Home Screen
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                (route) => false,
+              );
+            }
+          } else {
+            // Jika dokumen tidak ditemukan di firestore, anggap user biasa
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+              (route) => false,
+            );
+          }
+        }
       }
     } on FirebaseAuthException catch (e) {
       String pesan = 'Login gagal.';
@@ -194,6 +226,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
+
+                // ========================================================
+                // ⚠️ TOMBOL ADMIN SAYA HAPUS/KOMENTARI
+                // Karena login di atas sudah otomatis mendeteksi admin.
+                // Membiarkan tombol ini berarti siapa saja bisa masuk dashboard admin
+                // tanpa perlu password.
+                // ========================================================
+                /*
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
@@ -218,6 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                */
               ],
             ),
           ),

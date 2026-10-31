@@ -1,9 +1,8 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+
+// Android/iOS -> server lokal (dart:io). Web -> stub (tanpa dart:io).
+import 'admin_server_stub.dart' if (dart.library.io) 'admin_server_io.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -14,15 +13,13 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late final WebViewController _controller;
-  HttpServer? _server;
-  StreamSubscription<HttpRequest>? _serverSubscription;
   int _progress = 0;
   String? _loadError;
-  static const int _serverPort = 38547;
 
   @override
   void initState() {
     super.initState();
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFFF7F8FC))
@@ -41,66 +38,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           },
         ),
       );
+
     _loadDashboard();
   }
 
   Future<void> _loadDashboard() async {
     try {
-      if (_server == null) {
-        _server = await HttpServer.bind(
-          InternetAddress.loopbackIPv4,
-          _serverPort,
-        );
-        _serverSubscription = _server!.listen(_serveAssetRequest);
-      }
-      await _controller.loadRequest(
-        Uri.parse(
-          'http://127.0.0.1:$_serverPort/admin_web/dist/index.html',
-        ),
-      );
+      final url = await startAdminServer();
+      await _controller.loadRequest(Uri.parse(url));
     } catch (error) {
-      if (mounted) setState(() => _loadError = error.toString());
+      if (!mounted) return;
+      setState(() {
+        _loadError = error is StateError ? error.message : error.toString();
+      });
     }
-  }
-
-  Future<void> _serveAssetRequest(HttpRequest request) async {
-    final requestedPath = Uri.decodeComponent(request.uri.path);
-    const assetRoot = 'admin_web/dist/';
-    if (!requestedPath.startsWith('/$assetRoot')) {
-      request.response.statusCode = HttpStatus.notFound;
-      await request.response.close();
-      return;
-    }
-
-    final assetPath = requestedPath.substring(1);
-    try {
-      final data = await rootBundle.load(assetPath);
-      final extension = assetPath.split('.').last.toLowerCase();
-      final contentType = switch (extension) {
-        'html' => 'text/html; charset=utf-8',
-        'js' => 'application/javascript; charset=utf-8',
-        'css' => 'text/css; charset=utf-8',
-        'json' => 'application/json; charset=utf-8',
-        'svg' => 'image/svg+xml',
-        'woff' => 'font/woff',
-        'woff2' => 'font/woff2',
-        _ => 'application/octet-stream',
-      };
-      request.response.headers.set(HttpHeaders.contentTypeHeader, contentType);
-      request.response.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
-      request.response.add(
-        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
-      );
-    } catch (_) {
-      request.response.statusCode = HttpStatus.notFound;
-    }
-    await request.response.close();
   }
 
   @override
   void dispose() {
-    _serverSubscription?.cancel();
-    _server?.close(force: true);
+    stopAdminServer();
     super.dispose();
   }
 
@@ -120,7 +76,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             WebViewWidget(controller: _controller)
           else
             Center(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

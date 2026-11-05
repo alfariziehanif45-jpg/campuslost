@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@react-google-maps/api": "^2.20.8",
+    "firebase": "^13.2.0"
+  }
+}

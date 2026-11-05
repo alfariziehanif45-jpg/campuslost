@@ -4,7 +4,7 @@ import {
   Check, CheckCheck, ChevronDown, CircleHelp, Clock3, Command, FileCheck2,
   FileSearch, Filter, LayoutDashboard, LogOut, MapPin, Menu, MoreHorizontal,
   Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, TrendingUp,
-  Users, X, XCircle, PackageCheck, Inbox, RefreshCw,
+  Users, X, XCircle, PackageCheck, Inbox, RefreshCw, Map as MapIcon
 } from 'lucide-react';
 import {
   collection, doc, getDoc, getDocFromServer, onSnapshot, query, serverTimestamp, updateDoc,
@@ -12,8 +12,16 @@ import {
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
 
+// IMPORT UNTUK PETA
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+
+// --- KONFIGURASI PETA (GANTI DENGAN API KEY ANDA) ---
+const MAPS_API_KEY = "GANTI_DENGAN_API_KEY_GOOGLE_MAPS_WEB_ANDA"; 
+const DEFAULT_CENTER = { lat: -6.3606, lng: 106.8270 }; // Koordinat default kampus
+
 const sections = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'map', label: 'Peta Laporan', icon: MapIcon }, // <-- MENU BARU
   { id: 'claims', label: 'Claims', icon: FileCheck2, badge: true },
   { id: 'news', label: 'News', icon: Activity },
   { id: 'modal', label: 'Modal', icon: SlidersHorizontal },
@@ -114,6 +122,7 @@ function App() {
 
   const setPage = (id) => { setSection(id); setMobileMenu(false); };
   const notify = (message) => setToast(message);
+  
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileMenu ? 'sidebar-open' : ''}`}>
@@ -130,11 +139,14 @@ function App() {
         <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileMenu(true)} aria-label="Buka navigasi"><Menu size={20} /></button><div className="breadcrumb">Workspace <span>/</span> <b>{sections.find((item) => item.id === section)?.label}</b></div></div><div className="topbar-actions"><div className="live-status"><span className="live-dot" /> Live data</div><button className="icon-button top-icon" aria-label="Notifikasi" onClick={() => notify(`${pendingClaims.length} klaim menunggu ditinjau.`)}><Bell size={18} />{pendingClaims.length > 0 && <i />}</button><div className="top-divider" /><div className="top-user"><div className="profile-avatar small">{(profile?.name || user.email || 'A').slice(0, 1).toUpperCase()}</div><ChevronDown size={14} /></div></div></header>
         <div className="page-wrap">
           {data.error && <div className="error-banner"><AlertCircle size={17} /><span>{data.error} Pastikan akun memiliki akses Firestore.</span><button onClick={() => window.location.reload()}>Coba lagi</button></div>}
+          
           {section === 'overview' && <Overview data={data} pendingClaims={pendingClaims} onNavigate={setPage} />}
+          {section === 'map' && <MapPage items={data.items} onNotify={notify} />} {/* <-- RENDER PETA */}
           {section === 'claims' && <ClaimsPage claims={data.claims} items={data.items} users={data.users} onNotify={notify} />}
           {section === 'news' && <NewsPage items={data.items} loading={data.loading} onNotify={notify} />}
           {section === 'modal' && <SystemPage users={data.users} items={data.items} claims={data.claims} />}
           {section === 'settings' && <SettingsPage profile={profile} email={user.email} onLogout={() => signOut(auth)} />}
+          
           {data.loading && <div className="loading-strip"><RefreshCw size={14} className="spin" /> Menghubungkan data CampusLost...</div>}
         </div>
       </main>
@@ -143,6 +155,103 @@ function App() {
     </div>
   );
 }
+
+// --- KOMPONEN HALAMAN PETA (BARU) ---
+function MapPage({ items }) {
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [filterType, setFilterType] = useState('ALL'); // ALL, LOST, FOUND
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: MAPS_API_KEY
+  });
+
+  // Hanya tampilkan item yang memiliki koordinat
+  const itemsWithCoords = items.filter(item => {
+    const hasCoords = item.latitude && item.longitude;
+    if (!hasCoords) return false;
+    if (filterType === 'ALL') return true;
+    return (item.status_type || item.type || '').toUpperCase() === filterType;
+  });
+
+  return (
+    <>
+      <PageHeading 
+        eyebrow="PETA LOKASI LAPORAN" 
+        title="Sebaran Laporan Kampus" 
+        subtitle="Pantau titik lokasi barang hilang dan ditemukan secara visual." 
+        actions={
+          <div className="filter-tabs">
+            <button className={filterType === 'ALL' ? 'selected' : ''} onClick={() => setFilterType('ALL')}>Semua</button>
+            <button className={filterType === 'LOST' ? 'selected' : ''} onClick={() => setFilterType('LOST')}>Hilang (Merah)</button>
+            <button className={filterType === 'FOUND' ? 'selected' : ''} onClick={() => setFilterType('FOUND')}>Temuan (Hijau)</button>
+          </div>
+        } 
+      />
+      
+      <section className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+        {!isLoaded ? (
+          <div style={{ height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <RefreshCw className="spin" /> Memuat Peta...
+          </div>
+        ) : (
+          <GoogleMap
+            mapContainerStyle={{ width: '100%', height: '650px' }}
+            center={DEFAULT_CENTER}
+            zoom={16}
+            options={{
+              disableDefaultUI: false,
+              zoomControl: true,
+            }}
+          >
+            {itemsWithCoords.map((item) => {
+              const isLost = (item.status_type || item.type || '').toUpperCase() === 'LOST';
+              return (
+                <Marker
+                  key={item.id}
+                  position={{ lat: Number(item.latitude), lng: Number(item.longitude) }}
+                  // Gunakan ikon dot merah/hijau standar Google Maps
+                  icon={{
+                    url: isLost 
+                      ? 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' 
+                      : 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                  }}
+                  onClick={() => setSelectedItem(item)}
+                />
+              );
+            })}
+
+            {selectedItem && (
+              <InfoWindow
+                position={{ lat: Number(selectedItem.latitude), lng: Number(selectedItem.longitude) }}
+                onCloseClick={() => setSelectedItem(null)}
+              >
+                <div style={{ color: '#333', padding: '4px', maxWidth: '200px' }}>
+                  {selectedItem.imageUrl && <img src={selectedItem.imageUrl} alt="" style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />}
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px' }}>{selectedItem.title}</h4>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666' }}><MapPin size={12} style={{ display: 'inline', marginRight: 4 }}/> {selectedItem.location || selectedItem.location_name}</p>
+                  <span className={`type-chip ${(selectedItem.status_type || selectedItem.type).toLowerCase()}`} style={{ fontSize: '10px' }}>
+                    {typeLabel(selectedItem.status_type || selectedItem.type)}
+                  </span>
+                </div>
+              </InfoWindow>
+            )}
+          </GoogleMap>
+        )}
+      </section>
+      
+      <div className="security-callout" style={{ marginTop: '20px' }}>
+        <AlertCircle size={17} />
+        <div>
+          <b>Informasi Peta</b>
+          <span>Jika peta berwarna abu-abu/kosong, pastikan API Key Google Maps untuk Web sudah valid dan tagihan (billing) di Google Cloud Console sudah aktif.</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ... (SISA KODE DI BAWAH INI SAMA PERSIS SEPERTI SEBELUMNYA) ...
 
 function Login({ onLogin, error }) {
   const [email, setEmail] = useState('');

@@ -7,7 +7,7 @@ import {
   Users, X, XCircle, PackageCheck, Inbox, RefreshCw, Map as MapIcon
 } from 'lucide-react';
 import {
-  collection, doc, getDoc, getDocFromServer, onSnapshot, query, serverTimestamp, updateDoc,
+  collection, doc, getDoc, getDocFromServer, onSnapshot, query, serverTimestamp, updateDoc, writeBatch,
 } from 'firebase/firestore';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
@@ -23,7 +23,7 @@ const sections = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'map', label: 'Peta Laporan', icon: MapIcon }, // <-- MENU BARU
   { id: 'claims', label: 'Claims', icon: FileCheck2, badge: true },
-  { id: 'news', label: 'News', icon: Activity },
+  { id: 'news', label: 'Laporan', icon: Activity, badge: true },
   { id: 'modal', label: 'Modal', icon: SlidersHorizontal },
   { id: 'settings', label: 'Settings', icon: Settings2 },
 ];
@@ -99,6 +99,7 @@ function App() {
   }, [toast]);
 
   const pendingClaims = data.claims.filter((claim) => (claim.status || claim.claim_status || 'PENDING').toUpperCase() === 'PENDING');
+  const pendingReports = data.items.filter((item) => (item.reviewStatus || 'APPROVED').toUpperCase() === 'PENDING');
   const isAdmin = (profile?.role || '').trim().toLowerCase() === 'admin';
 
   const refreshAdminProfile = async () => {
@@ -130,27 +131,27 @@ function App() {
         <div className="campus-switch"><div className="campus-avatar">CL</div><div className="campus-name"><b>Campus workspace</b><span>Universitas · Main</span></div><ChevronDown size={15} /></div>
         <div className="nav-caption">WORKSPACE</div>
         <nav className="side-nav" aria-label="Navigasi utama">
-          {sections.map(({ id, label, icon: Icon, badge }) => <button key={id} className={`nav-item ${section === id ? 'active' : ''}`} onClick={() => setPage(id)}><Icon size={18} strokeWidth={1.9} /><span>{label}</span>{badge && pendingClaims.length > 0 && <em>{pendingClaims.length}</em>}</button>)}
+          {sections.map(({ id, label, icon: Icon, badge }) => { const count = id === 'claims' ? pendingClaims.length : id === 'news' ? pendingReports.length : 0; return <button key={id} className={`nav-item ${section === id ? 'active' : ''}`} onClick={() => setPage(id)}><Icon size={18} strokeWidth={1.9} /><span>{label}</span>{badge && count > 0 && <em>{count}</em>}</button>; })}
         </nav>
         <div className="sidebar-bottom"><div className="support-card"><div className="support-icon"><CircleHelp size={17} /></div><b>Butuh bantuan?</b><p>Hubungi tim dukungan CampusLost.</p><a href="mailto:support@campuslost.id">Hubungi support <ArrowRight size={13} /></a></div><div className="profile-mini"><div className="profile-avatar">{(profile?.name || user.email || 'A').slice(0, 1).toUpperCase()}</div><div className="profile-text"><b>{profile?.name || 'Admin CampusLost'}</b><span>{user.email}</span></div><button className="icon-button" title="Keluar" onClick={() => signOut(auth)}><LogOut size={16} /></button></div></div>
       </aside>
       {mobileMenu && <button className="scrim" onClick={() => setMobileMenu(false)} aria-label="Tutup navigasi" />}
       <main className="main-area">
-        <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileMenu(true)} aria-label="Buka navigasi"><Menu size={20} /></button><div className="breadcrumb">Workspace <span>/</span> <b>{sections.find((item) => item.id === section)?.label}</b></div></div><div className="topbar-actions"><div className="live-status"><span className="live-dot" /> Live data</div><button className="icon-button top-icon" aria-label="Notifikasi" onClick={() => notify(`${pendingClaims.length} klaim menunggu ditinjau.`)}><Bell size={18} />{pendingClaims.length > 0 && <i />}</button><div className="top-divider" /><div className="top-user"><div className="profile-avatar small">{(profile?.name || user.email || 'A').slice(0, 1).toUpperCase()}</div><ChevronDown size={14} /></div></div></header>
+        <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileMenu(true)} aria-label="Buka menu"><Menu size={20} /></button><div className="breadcrumb">Workspace <span>/</span> <b>{sections.find((item) => item.id === section)?.label}</b></div></div><div className="topbar-actions"><div className="live-status"><span className="live-dot" /> Live data</div><button className="icon-button top-icon" aria-label="Notifikasi laporan" onClick={() => { setPage('news'); notify(`${pendingReports.length} laporan menunggu konfirmasi admin.`); }}><Bell size={18} />{pendingReports.length > 0 && <i />}</button><div className="top-divider" /><div className="top-user"><div className="profile-avatar small">{(profile?.name || user.email || 'A').slice(0, 1).toUpperCase()}</div><ChevronDown size={14} /></div></div></header>
         <div className="page-wrap">
           {data.error && <div className="error-banner"><AlertCircle size={17} /><span>{data.error} Pastikan akun memiliki akses Firestore.</span><button onClick={() => window.location.reload()}>Coba lagi</button></div>}
           
           {section === 'overview' && <Overview data={data} pendingClaims={pendingClaims} onNavigate={setPage} />}
           {section === 'map' && <MapPage items={data.items} onNotify={notify} />} {/* <-- RENDER PETA */}
           {section === 'claims' && <ClaimsPage claims={data.claims} items={data.items} users={data.users} onNotify={notify} />}
-          {section === 'news' && <NewsPage items={data.items} loading={data.loading} onNotify={notify} />}
+          {section === 'news' && <NewsPage items={data.items} users={data.users} loading={data.loading} onNotify={notify} />}
           {section === 'modal' && <SystemPage users={data.users} items={data.items} claims={data.claims} />}
           {section === 'settings' && <SettingsPage profile={profile} email={user.email} onLogout={() => signOut(auth)} />}
           
           {data.loading && <div className="loading-strip"><RefreshCw size={14} className="spin" /> Menghubungkan data CampusLost...</div>}
         </div>
       </main>
-      <nav className="bottom-nav" aria-label="Navigasi mobile">{sections.map(({ id, label, icon: Icon, badge }) => <button key={id} onClick={() => setPage(id)} className={section === id ? 'active' : ''}><span className="bottom-icon"><Icon size={19} />{badge && pendingClaims.length > 0 && <i />}</span><small>{label}</small></button>)}</nav>
+      <nav className="bottom-nav" aria-label="Navigasi mobile">{sections.map(({ id, label, icon: Icon, badge }) => { const count = id === 'claims' ? pendingClaims.length : id === 'news' ? pendingReports.length : 0; return <button key={id} onClick={() => setPage(id)} className={section === id ? 'active' : ''}><span className="bottom-icon"><Icon size={19} />{badge && count > 0 && <i />}</span><small>{label}</small></button>; })}</nav>
       {toast && <div className="toast"><Check size={16} />{toast}</div>}
     </div>
   );
@@ -333,16 +334,118 @@ function ClaimModal({ claim, onClose, onDecide, busy }) {
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="review-modal"><div className="modal-top"><div><div className="eyebrow">TINJAUAN KLAIM</div><h2>{claim.item?.title || 'Detail klaim'}</h2></div><button className="icon-button" onClick={onClose}><X size={18} /></button></div><div className="review-person"><div className="profile-avatar">{(claim.claimant?.name || 'M').slice(0, 1).toUpperCase()}</div><div><b>{claim.claimant?.name || claim.claimant?.full_name || 'Mahasiswa'}</b><span>{claim.claimant?.nim || 'NIM tidak tersedia'} · {claim.claimant?.email || claim.claimant?.email_campus || 'Email tidak tersedia'}</span></div></div><div className="proof-box"><div className="proof-label"><ShieldCheck size={15} /> BUKTI KEPEMILIKAN</div><p>{claim.answer || claim.proof_answer || 'Pengaju tidak menambahkan jawaban.'}</p></div><div className="review-info"><div><span>Lokasi laporan</span><b>{claim.item?.location || claim.item?.location_name || 'Tidak dicantumkan'}</b></div><div><span>Waktu pengajuan</span><b>{formatDate(claim.createdAt || claim.created_at)}</b></div></div><p className="privacy-note"><AlertCircle size={14} /> Pastikan bukti cocok dengan detail barang sebelum memberi keputusan.</p><div className="modal-actions"><button className="outline-button" onClick={onClose}>Tutup</button>{status === 'PENDING' && <><button className="reject-button" disabled={busy} onClick={() => onDecide(claim, 'REJECTED')}><XCircle size={15} /> Tolak</button><button className="primary-button" disabled={busy} onClick={() => onDecide(claim, 'APPROVED')}><CheckCheck size={15} /> {busy ? 'Menyimpan...' : 'Setujui klaim'}</button></>}</div></div></div>;
 }
 
-function NewsPage({ items, loading, onNotify }) {
+function NewsPage({ items, users, loading, onNotify }) {
   const [kind, setKind] = useState('ALL');
   const [term, setTerm] = useState('');
   const [busy, setBusy] = useState('');
   const visible = [...items].sort((a, b) => (asDate(b.createdAt || b.date || b.created_at)?.getTime() || 0) - (asDate(a.createdAt || a.date || a.created_at)?.getTime() || 0)).filter((item) => {
     const type = (item.status_type || item.type || '').toUpperCase();
-    return (kind === 'ALL' || type === kind) && `${item.title || ''} ${item.location || item.location_name || ''} ${item.category || ''}`.toLowerCase().includes(term.toLowerCase());
+    const reporter = users.find((user) => user.id === (item.userId || item.user_id));
+    const searchText = `${item.title || ''} ${item.location || item.location_name || ''} ${item.category || ''} ${reporter?.name || reporter?.full_name || ''} ${reporter?.email || ''}`;
+    return (kind === 'ALL' || type === kind) && searchText.toLowerCase().includes(term.toLowerCase());
   });
-  const updateStatus = async (item, status) => { setBusy(item.id); try { await updateDoc(doc(db, 'items', item.id), { status }); onNotify(`Status laporan diubah menjadi ${statusLabel(status)}.`); } catch (error) { onNotify(`Gagal mengubah status: ${error.message}`); } finally { setBusy(''); } };
-  return <><PageHeading eyebrow="LAPORAN KOMUNITAS" title="News" subtitle="Laporan terbaru dari mahasiswa di lingkungan kampus." actions={<div className="heading-count"><Activity size={15} /> {items.length} laporan</div>} /><div className="news-tools"><div className="filter-tabs"><button className={kind === 'ALL' ? 'selected' : ''} onClick={() => setKind('ALL')}>Semua</button><button className={kind === 'LOST' ? 'selected' : ''} onClick={() => setKind('LOST')}>Hilang</button><button className={kind === 'FOUND' ? 'selected' : ''} onClick={() => setKind('FOUND')}>Temuan</button></div><label className="search-field"><Search size={15} /><input placeholder="Cari laporan..." value={term} onChange={(e) => setTerm(e.target.value)} /></label></div>{loading ? <div className="panel loading-panel"><RefreshCw className="spin" /> Memuat laporan...</div> : visible.length ? <div className="news-grid">{visible.map((item) => <article className="news-card" key={item.id}><div className="news-image">{item.imageUrl ? <img src={item.imageUrl} alt={item.title || 'Foto barang'} /> : <div className="image-placeholder"><FileSearch size={27} /></div>}<span className={`type-chip ${(item.status_type || item.type || '').toLowerCase()}`}>{typeLabel(item.status_type || item.type)}</span><button className="image-menu icon-button" title="Tutup laporan" disabled={busy === item.id} onClick={() => updateStatus(item, 'CLOSED')}><MoreHorizontal size={18} /></button></div><div className="news-content"><div className="news-category">{item.category || 'Lainnya'} <span>·</span> {formatRelative(item.createdAt || item.date || item.created_at)}</div><h3>{item.title || 'Tanpa judul'}</h3><div className="news-location"><MapPin size={14} /> {item.location || item.location_name || 'Lokasi tidak dicantumkan'}</div><p>{item.description || 'Tidak ada deskripsi tambahan.'}</p><div className="news-card-footer"><StatusPill status={(item.status || 'OPEN').toUpperCase()} /><button className="text-button" disabled={busy === item.id} onClick={() => updateStatus(item, item.status === 'CLOSED' ? 'OPEN' : 'CLOSED')}>{busy === item.id ? 'Menyimpan...' : item.status === 'CLOSED' ? 'Aktifkan' : 'Tutup laporan'} <ArrowRight size={13} /></button></div></div></article>)}</div> : <div className="panel"><EmptyInline icon={Inbox} title="Belum ada laporan" text="Laporan terbaru akan tampil di sini." /></div>}</>;
+  const decideReport = async (item, reviewStatus) => {
+    setBusy(item.id);
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'items', item.id), {
+        reviewStatus,
+        reviewedAt: serverTimestamp(),
+        reviewedBy: auth.currentUser.uid,
+      });
+
+      const reporterId = item.userId || item.user_id;
+      if (reporterId) {
+        const type = (item.status_type || item.type || '').toUpperCase();
+        const reportKind = type === 'FOUND' ? 'barang temuan' : 'barang hilang';
+        const notificationRef = doc(collection(db, 'notifications'));
+        batch.set(notificationRef, {
+          userId: reporterId,
+          title: reviewStatus === 'APPROVED' ? 'Laporan dikonfirmasi admin' : 'Laporan ditolak admin',
+          message: reviewStatus === 'APPROVED'
+            ? `Laporan ${reportKind} "${item.title || 'tanpa judul'}" sudah dikonfirmasi. Admin akan membantu menindaklanjuti pihak terkait.`
+            : `Laporan ${reportKind} "${item.title || 'tanpa judul'}" belum dapat dikonfirmasi. Silakan hubungi admin untuk informasi lebih lanjut.`,
+          type: 'REPORT_REVIEW',
+          itemId: item.id,
+          reportStatus: reviewStatus,
+          isRead: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+      onNotify(reviewStatus === 'APPROVED'
+        ? 'Laporan dikonfirmasi dan pelapor sudah diberi notifikasi.'
+        : 'Laporan ditolak dan pelapor sudah diberi notifikasi.');
+    } catch (error) {
+      onNotify(`Gagal meninjau laporan: ${error.message}`);
+    } finally {
+      setBusy('');
+    }
+  };
+  const updateStatus = async (item, status) => {
+    setBusy(item.id);
+    try {
+      await updateDoc(doc(db, 'items', item.id), { status });
+      onNotify(`Status barang diubah menjadi ${statusLabel(status)}.`);
+    } catch (error) {
+      onNotify(`Gagal mengubah status barang: ${error.message}`);
+    } finally {
+      setBusy('');
+    }
+  };
+  const pendingCount = items.filter((item) => (item.reviewStatus || 'APPROVED').toUpperCase() === 'PENDING').length;
+  return <>
+    <PageHeading
+      eyebrow="TINJAUAN LAPORAN"
+      title="Laporan"
+      subtitle="Tinjau laporan barang hilang dan temuan, lalu konfirmasi kepada pelapor."
+      actions={<div className="heading-count"><Clock3 size={15} /> {pendingCount} menunggu konfirmasi</div>}
+    />
+    <div className="news-tools">
+      <div className="filter-tabs">
+        <button className={kind === 'ALL' ? 'selected' : ''} onClick={() => setKind('ALL')}>Semua</button>
+        <button className={kind === 'LOST' ? 'selected' : ''} onClick={() => setKind('LOST')}>Hilang</button>
+        <button className={kind === 'FOUND' ? 'selected' : ''} onClick={() => setKind('FOUND')}>Temuan</button>
+      </div>
+      <label className="search-field"><Search size={15} /><input placeholder="Cari laporan atau pelapor..." value={term} onChange={(e) => setTerm(e.target.value)} /></label>
+    </div>
+    {loading ? <div className="panel loading-panel"><RefreshCw className="spin" /> Memuat laporan...</div> : visible.length ? (
+      <div className="news-grid">
+        {visible.map((item) => {
+          const reporter = users.find((user) => user.id === (item.userId || item.user_id));
+          const reporterEmail = reporter?.email || reporter?.email_campus;
+          const reviewStatus = (item.reviewStatus || 'APPROVED').toUpperCase();
+          return <article className="news-card" key={item.id}>
+            <div className="news-image">
+              {item.imageUrl ? <img src={item.imageUrl} alt={item.title || 'Foto barang'} /> : <div className="image-placeholder"><FileSearch size={27} /></div>}
+              <span className={`type-chip ${(item.status_type || item.type || '').toLowerCase()}`}>{typeLabel(item.status_type || item.type)}</span>
+              <button className="image-menu icon-button" title="Tutup laporan" disabled={busy === item.id} onClick={() => updateStatus(item, 'CLOSED')}><MoreHorizontal size={18} /></button>
+            </div>
+            <div className="news-content">
+              <div className="news-category">{item.category || 'Lainnya'} <span>·</span> {formatRelative(item.createdAt || item.date || item.created_at)}</div>
+              <h3>{item.title || 'Tanpa judul'}</h3>
+              <div className="news-location"><MapPin size={14} /> {item.location || item.location_name || 'Lokasi tidak dicantumkan'}</div>
+              <p>{item.description || 'Tidak ada deskripsi tambahan.'}</p>
+              <div className="reporter-contact">
+                <b>{reporter?.name || reporter?.full_name || 'Pelapor'}</b>
+                {reporterEmail
+                  ? <a href={`mailto:${reporterEmail}`}>{reporterEmail}</a>
+                  : <span>Email pelapor tidak tersedia</span>}
+              </div>
+              <div className="news-card-footer">
+                <StatusPill status={reviewStatus} />
+                {reviewStatus === 'PENDING' ? <div className="report-review-actions">
+                  <button className="reject-button" disabled={busy === item.id} onClick={() => decideReport(item, 'REJECTED')}><XCircle size={14} /> Tolak</button>
+                  <button className="primary-button" disabled={busy === item.id} onClick={() => decideReport(item, 'APPROVED')}><CheckCheck size={14} /> {busy === item.id ? 'Menyimpan...' : 'Konfirmasi'}</button>
+                </div> : <button className="text-button" disabled={busy === item.id} onClick={() => updateStatus(item, item.status === 'CLOSED' ? 'OPEN' : 'CLOSED')}>{busy === item.id ? 'Menyimpan...' : item.status === 'CLOSED' ? 'Aktifkan barang' : 'Tutup barang'} <ArrowRight size={13} /></button>}
+              </div>
+            </div>
+          </article>;
+        })}
+      </div>
+    ) : <div className="panel"><EmptyInline icon={Inbox} title="Belum ada laporan" text="Laporan barang hilang dan temuan akan tampil di sini." /></div>}
+  </>;
 }
 
 function SystemPage({ users, items, claims }) {

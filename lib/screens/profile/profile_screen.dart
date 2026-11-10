@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../auth/login_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
+import '../claim/approved_items_screen.dart'; // ✅ IMPORT FILE BARU (Sesuaikan path jika perlu)
 import 'package:campuslost/services/user_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -164,6 +165,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       data['reputation_score'],
                     ),
                     const SizedBox(height: 20),
+
+                    // ✅ TOMBOL BARU: Menuju Halaman Barang Disetujui
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ApprovedItemsScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text(
+                          'Barang yang Disetujui',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(
+                            0xFF4358B8,
+                          ), // Warna tema Anda
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     SizedBox(
                       width: double.infinity,
                       height: 48,

@@ -34,7 +34,7 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Cek apakah sudah pernah klaim
+      // 1. Cek apakah user sudah pernah mengklaim barang ini sebelumnya
       final existing = await FirebaseFirestore.instance
           .collection('claims')
           .where('itemId', isEqualTo: widget.itemId)
@@ -45,12 +45,16 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
         throw 'Anda sudah mengajukan klaim untuk barang ini.';
       }
 
-      // Simpan ke Firestore
+      // 2. Simpan data klaim ke Firestore
       await FirebaseFirestore.instance.collection('claims').add({
         'itemId': widget.itemId,
+        'itemName': widget.itemTitle, // ✅ TAMBAHAN: Simpan nama barang
         'userId': user.uid,
+        'userEmail':
+            user.email ?? 'Tidak ada email', // ✅ TAMBAHAN: Simpan email user
         'answer': _proofController.text.trim(),
-        'status': 'PENDING',
+        'status':
+            'pending', // ✅ PERBAIKAN: Gunakan huruf kecil 'pending' agar konsisten
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -66,12 +70,20 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _proofController.dispose();
+    super.dispose();
   }
 
   @override

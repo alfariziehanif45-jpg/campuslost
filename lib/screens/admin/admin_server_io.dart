@@ -60,13 +60,15 @@ Future<String> startAdminServer() async {
   }
 
   await _server?.close(force: true);
+  // Gunakan port 0 agar sistem memilihkan port yang tersedia secara otomatis
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   _server = server;
 
   server.listen((HttpRequest request) async {
     var path = Uri.decodeComponent(request.uri.path);
     if (path == '/' || path.isEmpty) path = '/index.html';
-    // Cegah path traversal.
+
+    // Cegah path traversal (keamanan)
     if (path.contains('..')) {
       request.response.statusCode = HttpStatus.forbidden;
       await request.response.close();
@@ -81,6 +83,7 @@ Future<String> startAdminServer() async {
         data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
       );
     } catch (_) {
+      // Jika file tidak ditemukan (misal gambar hilang), kembalikan 404
       request.response.statusCode = HttpStatus.notFound;
     }
     await request.response.close();

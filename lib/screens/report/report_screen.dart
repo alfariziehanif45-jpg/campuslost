@@ -172,7 +172,15 @@ class _ReportScreenState extends State<ReportScreen> {
         geoPoint = GeoPoint(latitude!, longitude!);
       }
 
-      await FirebaseFirestore.instance.collection('items').add({
+      final firestore = FirebaseFirestore.instance;
+      final admins = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get();
+      final itemRef = firestore.collection('items').doc();
+      final batch = firestore.batch();
+
+      batch.set(itemRef, {
         'title': namaController.text.trim(),
         'category': kategoriController.text.trim().isNotEmpty
             ? kategoriController.text.trim()
@@ -190,6 +198,7 @@ class _ReportScreenState extends State<ReportScreen> {
         'type': widget.type,
         'status_type': widget.type,
         'status': 'OPEN',
+        'reviewStatus': 'PENDING',
         'is_received_by_owner': false,
         'userId': user.uid,
         'user_id': user.uid,
@@ -197,19 +206,44 @@ class _ReportScreenState extends State<ReportScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      final isLost = widget.type == 'LOST';
+      for (final admin in admins.docs) {
+        final notificationRef = firestore.collection('notifications').doc();
+        batch.set(notificationRef, {
+          'userId': admin.id,
+          'title': isLost ? 'Laporan barang hilang baru' : 'Laporan barang temuan baru',
+          'message':
+              '${namaController.text.trim()} menunggu konfirmasi admin.',
+          'type': 'REPORT_SUBMITTED',
+          'itemId': itemRef.id,
+          'reporterId': user.uid,
+          'reportType': widget.type,
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Laporan berhasil disimpan!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(
+              admins.docs.isEmpty
+                  ? 'Laporan tersimpan, tetapi akun admin belum terdaftar untuk menerima notifikasi.'
+                  : 'Laporan berhasil disimpan dan dikirim ke admin untuk ditinjau.',
+            ),
+            backgroundColor: admins.docs.isEmpty ? Colors.orange : Colors.green,
           ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      }
     } finally {
       if (mounted) setState(() => isLoading = false);
     }

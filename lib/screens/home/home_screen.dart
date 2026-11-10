@@ -7,6 +7,7 @@ import '../../services/firestore_service.dart';
 import '../../widgets/item_card.dart';
 import '../claim/my_claim_screen.dart';
 import '../found/found_item_screen.dart';
+import '../notification/notification_screen.dart';
 import '../profile/profile_screen.dart';
 import '../report/report_found_screen.dart';
 import '../report/report_lost_screen.dart';
@@ -407,9 +408,10 @@ class _HomeContentState extends State<HomeContent> {
                     children: [
                       IconButton(
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Belum ada notifikasi baru.'),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationScreen(),
                             ),
                           );
                         },

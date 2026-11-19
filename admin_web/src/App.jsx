@@ -12,12 +12,12 @@ import {
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
 
-// IMPORT UNTUK PETA
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+// PETA OPENSTREETMAP (tanpa API key Google)
+import 'leaflet/dist/leaflet.css';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 
-// --- KONFIGURASI PETA (GANTI DENGAN API KEY ANDA) ---
-const MAPS_API_KEY = "GANTI_DENGAN_API_KEY_GOOGLE_MAPS_WEB_ANDA"; 
-const DEFAULT_CENTER = { lat: -6.3606, lng: 106.8270 }; // Koordinat default kampus
+// Koordinat awal peta jika belum ada laporan berkoordinat.
+const DEFAULT_CENTER = [-6.3606, 106.8270];
 
 const sections = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -157,102 +157,218 @@ function App() {
   );
 }
 
-// --- KOMPONEN HALAMAN PETA (BARU) ---
+// ==========================================
+// PETA LAPORAN - OPENSTREETMAP + FIRESTORE
+// ==========================================
+
+// Membaca koordinat dari beberapa bentuk data yang umum disimpan di Firestore.
+// Mendukung latitude/longitude, lat/lng, GeoPoint, dan object koordinat.
+function getItemCoordinates(item) {
+  const candidates = [
+    item.lastLocation,
+    item.last_location,
+    item.coordinates,
+    item.locationCoordinates,
+    item.location_coordinates,
+    item.geoPoint,
+    item.geopoint,
+    item.location && typeof item.location === 'object' ? item.location : null,
+    item,
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+
+    let lat;
+    let lng;
+
+    if (Array.isArray(value) && value.length >= 2) {
+      [lat, lng] = value;
+    } else if (typeof value === 'object') {
+      lat = value.latitude ?? value.lat ?? value._latitude;
+      lng = value.longitude ?? value.lng ?? value.lon ?? value._longitude;
+    }
+
+    if (lat === undefined || lng === undefined || lat === null || lng === null) continue;
+
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+
+    if (
+      Number.isFinite(latitude) &&
+      Number.isFinite(longitude) &&
+      latitude >= -90 && latitude <= 90 &&
+      longitude >= -180 && longitude <= 180 &&
+      !(latitude === 0 && longitude === 0)
+    ) {
+      return { lat: latitude, lng: longitude };
+    }
+  }
+
+  return null;
+}
+
+// Mengatur zoom agar seluruh titik laporan terlihat di peta.
+function MapAutoFit({ points }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!points.length) return;
+
+    const bounds = points.map((point) => [point.lat, point.lng]);
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 17);
+    } else {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+    }
+  }, [map, points]);
+
+  return null;
+}
+
 function MapPage({ items }) {
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [filterType, setFilterType] = useState('ALL'); // ALL, LOST, FOUND
+  const [filterType, setFilterType] = useState('ALL');
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: MAPS_API_KEY
-  });
+  const itemsWithCoords = useMemo(() => {
+    return items
+      .map((item) => ({ ...item, mapCoords: getItemCoordinates(item) }))
+      .filter((item) => item.mapCoords !== null)
+      .filter((item) => {
+        const type = (item.status_type || item.type || '').toUpperCase();
+        return filterType === 'ALL' || type === filterType;
+      });
+  }, [items, filterType]);
 
-  // Hanya tampilkan item yang memiliki koordinat
-  const itemsWithCoords = items.filter(item => {
-    const hasCoords = item.latitude && item.longitude;
-    if (!hasCoords) return false;
-    if (filterType === 'ALL') return true;
-    return (item.status_type || item.type || '').toUpperCase() === filterType;
-  });
+  const lostCount = itemsWithCoords.filter(
+    (item) => (item.status_type || item.type || '').toUpperCase() === 'LOST'
+  ).length;
+  const foundCount = itemsWithCoords.filter(
+    (item) => (item.status_type || item.type || '').toUpperCase() === 'FOUND'
+  ).length;
+
+  const points = itemsWithCoords.map((item) => item.mapCoords);
 
   return (
     <>
-      <PageHeading 
-        eyebrow="PETA LOKASI LAPORAN" 
-        title="Sebaran Laporan Kampus" 
-        subtitle="Pantau titik lokasi barang hilang dan ditemukan secara visual." 
+      <PageHeading
+        eyebrow="PETA LOKASI LAPORAN"
+        title="Sebaran Laporan Kampus"
+        subtitle="Pantau lokasi terakhir barang hilang dan ditemukan dari koordinat laporan."
         actions={
           <div className="filter-tabs">
-            <button className={filterType === 'ALL' ? 'selected' : ''} onClick={() => setFilterType('ALL')}>Semua</button>
-            <button className={filterType === 'LOST' ? 'selected' : ''} onClick={() => setFilterType('LOST')}>Hilang (Merah)</button>
-            <button className={filterType === 'FOUND' ? 'selected' : ''} onClick={() => setFilterType('FOUND')}>Temuan (Hijau)</button>
+            <button className={filterType === 'ALL' ? 'selected' : ''} onClick={() => setFilterType('ALL')}>
+              Semua ({itemsWithCoords.length})
+            </button>
+            <button className={filterType === 'LOST' ? 'selected' : ''} onClick={() => setFilterType('LOST')}>
+              Hilang ({lostCount})
+            </button>
+            <button className={filterType === 'FOUND' ? 'selected' : ''} onClick={() => setFilterType('FOUND')}>
+              Temuan ({foundCount})
+            </button>
           </div>
-        } 
+        }
       />
-      
-      <section className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        {!isLoaded ? (
-          <div style={{ height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <RefreshCw className="spin" /> Memuat Peta...
-          </div>
-        ) : (
-          <GoogleMap
-            mapContainerStyle={{ width: '100%', height: '650px' }}
-            center={DEFAULT_CENTER}
-            zoom={16}
-            options={{
-              disableDefaultUI: false,
-              zoomControl: true,
-            }}
-          >
-            {itemsWithCoords.map((item) => {
-              const isLost = (item.status_type || item.type || '').toUpperCase() === 'LOST';
-              return (
-                <Marker
-                  key={item.id}
-                  position={{ lat: Number(item.latitude), lng: Number(item.longitude) }}
-                  // Gunakan ikon dot merah/hijau standar Google Maps
-                  icon={{
-                    url: isLost 
-                      ? 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' 
-                      : 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
-                  }}
-                  onClick={() => setSelectedItem(item)}
-                />
-              );
-            })}
 
-            {selectedItem && (
-              <InfoWindow
-                position={{ lat: Number(selectedItem.latitude), lng: Number(selectedItem.longitude) }}
-                onCloseClick={() => setSelectedItem(null)}
+      <div
+        className="panel"
+        style={{ padding: 0, overflow: 'hidden', position: 'relative' }}
+      >
+        <MapContainer
+          center={DEFAULT_CENTER}
+          zoom={16}
+          scrollWheelZoom
+          style={{ width: '100%', height: '650px', zIndex: 1 }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          <MapAutoFit points={points} />
+
+          {itemsWithCoords.map((item) => {
+            const type = (item.status_type || item.type || 'LOST').toUpperCase();
+            const isLost = type === 'LOST';
+            const coords = item.mapCoords;
+
+            return (
+              <CircleMarker
+                key={item.id}
+                center={[coords.lat, coords.lng]}
+                radius={10}
+                pathOptions={{
+                  color: isLost ? '#DC4545' : '#159B68',
+                  fillColor: isLost ? '#F05252' : '#20B981',
+                  fillOpacity: 0.9,
+                  weight: 3,
+                }}
               >
-                <div style={{ color: '#333', padding: '4px', maxWidth: '200px' }}>
-                  {selectedItem.imageUrl && <img src={selectedItem.imageUrl} alt="" style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />}
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px' }}>{selectedItem.title}</h4>
-                  <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666' }}><MapPin size={12} style={{ display: 'inline', marginRight: 4 }}/> {selectedItem.location || selectedItem.location_name}</p>
-                  <span className={`type-chip ${(selectedItem.status_type || selectedItem.type).toLowerCase()}`} style={{ fontSize: '10px' }}>
-                    {typeLabel(selectedItem.status_type || selectedItem.type)}
-                  </span>
-                </div>
-              </InfoWindow>
-            )}
-          </GoogleMap>
-        )}
-      </section>
-      
-      <div className="security-callout" style={{ marginTop: '20px' }}>
-        <AlertCircle size={17} />
-        <div>
-          <b>Informasi Peta</b>
-          <span>Jika peta berwarna abu-abu/kosong, pastikan API Key Google Maps untuk Web sudah valid dan tagihan (billing) di Google Cloud Console sudah aktif.</span>
+                <Popup>
+                  <div style={{ width: 215, color: '#333', fontFamily: 'Arial, sans-serif' }}>
+                    {item.imageUrl && (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title || 'Foto barang'}
+                        style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
+                      />
+                    )}
+                    <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>
+                      {item.title || 'Barang tanpa judul'}
+                    </h3>
+                    <div style={{ fontSize: 12, marginBottom: 6 }}>
+                      <b>Jenis:</b> {typeLabel(type)}
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 6 }}>
+                      <b>Kategori:</b> {item.category || 'Lainnya'}
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 6 }}>
+                      <b>Lokasi:</b> {typeof item.location === 'string' ? item.location : item.location_name || 'Tidak dicantumkan'}
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 6 }}>
+                      <b>Status:</b> {statusLabel((item.status || 'OPEN').toUpperCase())}
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 6 }}>
+                      <b>Waktu laporan:</b> {formatDate(item.createdAt || item.date || item.created_at)}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#777' }}>
+                      Koordinat: {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+                    </div>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
+        </MapContainer>
+
+        <div
+          style={{ display: 'flex', gap: 20, flexWrap: 'wrap', padding: 15, borderTop: '1px solid #E8EAF0', background: '#fff', fontSize: 13 }}
+        >
+          <span><span style={{ color: '#DC4545' }}>●</span> Barang hilang</span>
+          <span><span style={{ color: '#159B68' }}>●</span> Barang ditemukan</span>
+          <span style={{ color: '#718096' }}>Klik titik untuk melihat detail laporan</span>
         </div>
       </div>
+
+      <div className="security-callout" style={{ marginTop: 20 }}>
+        <MapPin size={17} />
+        <div>
+          <b>Peta menggunakan OpenStreetMap</b>
+          <span>Lokasi titik diambil dari koordinat latitude dan longitude yang tersimpan pada dokumen items di Firestore. Perubahan data akan tampil otomatis melalui sinkronisasi realtime yang sudah digunakan dashboard.</span>
+        </div>
+      </div>
+
+      {itemsWithCoords.length === 0 && (
+        <div className="panel" style={{ marginTop: 15, padding: 22, textAlign: 'center' }}>
+          <MapPin size={30} color="#9CA3AF" />
+          <h3>Belum ada lokasi laporan yang bisa ditampilkan</h3>
+          <p style={{ color: '#718096', fontSize: 13, maxWidth: 560, margin: '0 auto' }}>
+            Data laporan belum memiliki koordinat yang valid atau field koordinatnya menggunakan nama lain. Pastikan aplikasi mahasiswa menyimpan latitude dan longitude saat membuat laporan.
+          </p>
+        </div>
+      )}
     </>
   );
 }
-
-// ... (SISA KODE DI BAWAH INI SAMA PERSIS SEPERTI SEBELUMNYA) ...
 
 function Login({ onLogin, error }) {
   const [email, setEmail] = useState('');

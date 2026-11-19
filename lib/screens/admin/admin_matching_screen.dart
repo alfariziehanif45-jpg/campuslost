@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/ai_match_model.dart';
 import '../../services/matching_service.dart';
+import 'admin_claims_screen.dart'; // 👈 Import file verifikasi klaim
 
 class AdminMatchingScreen extends StatefulWidget {
   const AdminMatchingScreen({super.key});
@@ -54,6 +55,19 @@ class _AdminMatchingScreenState extends State<AdminMatchingScreen>
         foregroundColor: const Color(0xFF26345F),
         elevation: 0,
         actions: [
+          // Tombol Verifikasi Klaim di AppBar
+          IconButton(
+            tooltip: 'Verifikasi Klaim Barang',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminClaimsScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.verified_user_outlined),
+          ),
           IconButton(
             tooltip: 'Jalankan pencocokan',
             onPressed: _runMatching,
@@ -97,14 +111,13 @@ class _MatchListState extends State<_MatchList> {
   final _cache = <String, Future<Map<String, dynamic>?>>{};
 
   Future<Map<String, dynamic>?> _fetch(String collection, String id) {
-    return _cache.putIfAbsent(
-      '$collection/$id',
-      () async {
-        final doc =
-            await FirebaseFirestore.instance.collection(collection).doc(id).get();
-        return doc.data();
-      },
-    );
+    return _cache.putIfAbsent('$collection/$id', () async {
+      final doc = await FirebaseFirestore.instance
+          .collection(collection)
+          .doc(id)
+          .get();
+      return doc.data();
+    });
   }
 
   @override
@@ -141,10 +154,8 @@ class _MatchListState extends State<_MatchList> {
               match: m,
               lostFuture: _fetch('lost_reports', m.lostItemId),
               foundFuture: _fetch('found_items', m.foundItemId),
-              onVerify:
-                  widget.status == 'pending' ? () => _verify(m) : null,
-              onReject:
-                  widget.status == 'pending' ? () => _reject(m) : null,
+              onVerify: widget.status == 'pending' ? () => _verify(m) : null,
+              onReject: widget.status == 'pending' ? () => _reject(m) : null,
             );
           },
         );
@@ -157,9 +168,9 @@ class _MatchListState extends State<_MatchList> {
     if (uid == null) return;
     await _service.verifyMatch(m, adminUid: uid);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Match diverifikasi.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Match diverifikasi.')));
   }
 
   Future<void> _reject(AiMatchModel m) async {
@@ -167,9 +178,9 @@ class _MatchListState extends State<_MatchList> {
     if (uid == null) return;
     await _service.rejectMatch(m, adminUid: uid);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Match ditolak.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Match ditolak.')));
   }
 }
 
@@ -205,8 +216,10 @@ class _MatchCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4358B8).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -226,8 +239,8 @@ class _MatchCard extends StatelessWidget {
                     color: match.status == 'verified'
                         ? Colors.green
                         : match.status == 'rejected'
-                            ? Colors.red
-                            : Colors.orange,
+                        ? Colors.red
+                        : Colors.orange,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),

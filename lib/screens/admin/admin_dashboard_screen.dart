@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 // Android/iOS -> server lokal (dart:io). Web -> stub (tanpa dart:io).
 import 'admin_server_stub.dart' if (dart.library.io) 'admin_server_io.dart';
+import 'admin_claims_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -15,6 +17,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late final WebViewController _controller;
   int _progress = 0;
   String? _loadError;
+
+  bool _showVerifyButton = false;
+  Timer? _checkLoginTimer; // Timer untuk memantau status login di WebView
 
   @override
   void initState() {
@@ -40,6 +45,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       );
 
     _loadDashboard();
+    _startCheckingLoginStatus(); // Mulai pantau status login
+  }
+
+  // 👇 Fungsi untuk mengecek apakah masih ada form login di halaman web 👇
+  void _startCheckingLoginStatus() {
+    _checkLoginTimer = Timer.periodic(const Duration(seconds: 1), (
+      timer,
+    ) async {
+      if (_loadError != null) return;
+      try {
+        // Mengecek apakah di halaman web masih ada input type="password"
+        final result = await _controller.runJavaScriptReturningResult(
+          "document.querySelector('input[type=\"password\"]') !== null;",
+        );
+
+        // Jika hasilnya 'true', berarti masih di halaman login
+        final isLoginPage = result.toString().toLowerCase() == 'true';
+
+        if (mounted) {
+          // Tampilkan tombol HANYA JIKA bukan di halaman login
+          if (_showVerifyButton == isLoginPage) {
+            setState(() {
+              _showVerifyButton = !isLoginPage;
+            });
+          }
+        }
+      } catch (e) {
+        // Abaikan error jika WebView belum siap sepenuhnya
+      }
+    });
   }
 
   Future<void> _loadDashboard() async {
@@ -56,6 +91,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   void dispose() {
+    _checkLoginTimer?.cancel(); // Hentikan timer saat keluar halaman
     stopAdminServer();
     super.dispose();
   }
@@ -69,6 +105,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF26345F),
         elevation: 0,
+        actions: [
+          // Tombol HANYA dirender jika _showVerifyButton = true (sudah login)
+          if (_showVerifyButton) ...[
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminClaimsScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(
+                Icons.fact_check_outlined,
+                color: Color(0xFF4358B8),
+                size: 20,
+              ),
+              label: const Text(
+                'Verifikasi Klaim',
+                style: TextStyle(
+                  color: Color(0xFF4358B8),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
       ),
       body: Stack(
         children: [
